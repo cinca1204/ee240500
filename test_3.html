@@ -1,0 +1,233 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Drawing Map From 3D Sensor Data</title>
+
+<!-- Include RGraph libraries -->
+<script src="RGraph/libraries/RGraph.common.core.js" >
+<!--
+
+//-->
+</script>
+<script src="RGraph/libraries/RGraph.common.context.js" >
+<!--
+
+//-->
+</script>
+<script src="RGraph/libraries/RGraph.line.js" >
+<!--
+
+//-->
+</script>
+<!--[if IE 8]><script src="../excanvas/excanvas.compressed.js">
+<!--
+
+//-->
+</script><![endif]-->
+</head>
+
+<body>
+<canvas id="cvs" width="1200" height="900">[No canvas support]</canvas>
+<!--
+Debug Informtion:
+<div id="myDivElement" />
+-->
+
+<script>
+<!--
+
+    var batch = 10;
+    var samples = batch;
+    var timecycle = 0;
+    var requestCounter = 0;
+    var interval = 0;
+    var nodata = 0;
+    var serverAddressBase = "xdata.";
+    var serverAddress = "xdata.0"; //default file to get from server
+	var theCanvas = document.getElementById("cvs");
+	var context = theCanvas.getContext("2d");
+	context.lineWidth = 5;
+	var p1 = 600;
+	var p2 = 320;
+	var p3 = 0;
+	var v1 = 0;
+	var v2 = 0;
+	var v3 = 0;
+    d1 = [];
+    d2 = [];
+	d3 = [];
+	context.font = '20px serif';
+    
+    // Pre-pad the arrays with # of samples null values
+    for (var i = 0; i < samples; ++i) {
+        d1.push(null);
+        d2.push(null);
+        d3.push(null);
+    }
+    for (var i = 0; i < samples; i++) {
+        d1[i]=0;
+        d2[i]=0;
+        d3[i]=0;
+    }
+
+    var xmlHttp = createXmlHttpRequestObject();
+
+
+    // creates XMLHttpRequest Instance
+    function createXmlHttpRequestObject() {
+
+      	// will store XMLHttpRequest object at here
+		var xmlHttp;
+
+      	// works all except IE6 and older explorer
+      	try {
+      
+			// try to create XMLHttpRequest object
+			xmlHttp = new XMLHttpRequest();    
+      	}
+      	catch(e) {
+			// assume IE 6 or older
+			try {
+	  			xmlHttp = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			catch(e) { 
+			}
+      	}
+      
+		// return object or display error
+      	if (!xmlHttp)
+			alert("Error creating the XMLHttpRequest Object");
+      	else
+			return xmlHttp;
+    }
+
+    function GetJsonData() {
+      	//debug
+      	//myDiv = document.getElementById("myDivElement"); 
+      	//myDiv.innerHTML += "Getting Json Data<br>"; 
+      	nodata = 0;
+
+      	if (xmlHttp) {
+			try {
+	  			xmlHttp.open("Get", serverAddress, false);
+	  			//xmlHttp.onreadystatechange = handleRequestStateChange; //We use synchronous data transfer, so we don't need this here
+				  xmlHttp.send(null);
+	  			try {
+		  			handleJsonData();
+	  			}
+	  			catch(err) {
+	     			if (err == "no data"){
+	          			//alert('Waiting '+serverAddressBase+requestCounter);
+		  				//setTimeout(GetJsonData,10); //Try again 10ms later
+		  				nodata = 1; //record status
+	     			}
+	  			}
+			}
+			catch(e) {
+	  			alert("Can't connect to server\n" + e.toString());
+			}
+      }
+    }
+
+    function handleJsonData() {
+      	var result = xmlHttp.responseText;
+      	if (result == '') {
+        	//alert('No data from xmlhttprequest object!');
+			throw "no data";
+      	}
+      	else {
+	      	try {
+		      	var jobject = eval("(" + result + ")");
+		      	var i = 0;
+		      	if (jobject.time > timecycle) {
+			      	timecycle = jobject.time;
+			    	  if (jobject.xarray.length == 0) {
+						     throw "no data";
+	      	   }	
+			      	else {
+                      for (var i = 0; i < samples; i++) {
+                          d1[i]=0;
+                          d2[i]=0;
+                          d3[i]=0;
+                          }
+				      	for (i = 0; i < jobject.xarray.length; i++) {
+					  		    //debug
+					  		    //myDiv.innerHTML += jobject.xarray[i][0] + ", " + jobject.xarray[i][1] + "<br>" ;
+					  		                  d1[i] = d1[i]+jobject.xarray[i][0]-50;
+					  		                  d2[i] = d2[i]+jobject.xarray[i][1]-42;
+							                    d3[i] = d3[i]+jobject.xarray[i][2]-4159;
+							                     /*
+					  	                     		d1.push(jobject.xarray[i][0]); 
+					  	                       		d2.push(jobject.xarray[i][1]);
+							                         	d3.push(jobject.xarray[i][2]);
+					  		                        	*/
+				        	}
+			      	}	
+		      	}
+		      	else {
+					//Do nothing
+		      	}
+	      	}
+	      	catch(e) {
+				//Retry; ignore all json errors
+	      	}	
+      }
+    }
+
+    function drawGraph() {
+        //debug
+        //myDiv = document.getElementById("myDivElement"); 
+        //myDiv.innerHTML += "Request # " + requestCounter + ": <br>"; 
+	
+		//Prepare new file name to get from
+		serverAddress = serverAddressBase+requestCounter;
+		//alert('Debug'+serverAddress);
+
+        //Save data from json object to the arrays
+		GetJsonData();
+		//Draw the graph
+		if (!nodata) { //Keep the file counter
+			requestCounter = (requestCounter + 1)%2; //cycle counter
+			//alert('Counter changed: '+requestCounter);
+		}
+		else {
+		//alert('Counter keeped: '+requestCounter);
+		}
+		setTimeout(drawGraph,50);
+		context.beginPath();
+		context.moveTo(p1,p2);
+   var i = 0;
+		for (i = 0; i < samples; i++) {
+			p1 = p1+v1*0.001+0.000005*d1[i];
+			p2 = p2+v2*0.001+0.000005*d2[i];
+			p3 = p3+v3*0.001+0.000005*d3[i];
+      context.lineTo(p1,p2);
+			v1 = v1+0.0001*d1[i];
+			v2 = v2+0.0001*d2[i];
+			v3 = v3+0.0001*d3[i];
+			context.clearRect(0,0,600,80);
+			context.fillText("Now height(z): " + p3,50,40);
+		}
+		context.stroke();
+		context.closePath();
+    }
+
+   theCanvas.addEventListener('mousemove', mouseMoveHandler, false); 
+    drawGraph();
+
+	function mouseMoveHandler(e) {
+		var m = "position(x,y): " + (e.clientX-10) + "," + (e.clientY-10);
+		show(m);
+	}
+	function show(m) {
+		context.clearRect(0,100,400,220);
+		context.textAlign = "left";
+		context.textBaseline = "bottom";
+		context.fillText(m, 100, 150);
+	}
+
+//-->
+</script>
+</body>
+</html>
